@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#121826">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>HeadMath</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="simge-192.png">
+  <link rel="stylesheet" href="stil.css">
+</head>
+<body>
+  <main id="sahne">
+    <canvas id="tuval" width="1280" height="720"></canvas>
+    <form id="isim-form" autocomplete="off">
+      <div id="isim-kutusu" hidden>
+        <input id="isim" maxlength="16" placeholder="İsmin" enterkeyhint="done">
+        <button type="submit">Kaydet</button>
+      </div>
+    </form>
+  </main>
+  <video id="video" playsinline muted></video>
+  <script type="module" src="oyun.js"></script>
+  <script>
+    // Çevrimdışı çalışma: dosyalar ilk açılışta tabletin önbelleğine alınır.
+    if ("serviceWorker" in navigator && location.protocol === "https:") {
+      navigator.serviceWorker.register("sw.js").catch((h) => console.warn("Service worker:", h));
+    }
+  </script>
+</body>
+</html>
