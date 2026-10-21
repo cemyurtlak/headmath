@@ -2,12 +2,12 @@
 // modelleri tabletin önbelleğine alır; sonra internet olmasa da oyun açılır.
 // Oyunda değişiklik yapınca SURUM numarasını artırın; tabletler bir sonraki internetli
 // açılışta yeni sürümü alır.
-const SURUM = "headmath-v1";
+const SURUM = "headmath-v2";
 const KUTUPHANE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21";
 const MODELLER = "https://storage.googleapis.com/mediapipe-models";
 const DOSYALAR = [
   "./", "index.html", "stil.css", "oyun.js", "ayarlar.js", "sorular.js", "takip.js", "manifest.json",
-  "simge-192.png", "simge-512.png", "sesler/alkis.mp3", "sesler/zort.mp3",
+  "simge-192.png", "simge-512.png", "sesler/alkis.mp3", "sesler/zort.mp3", "sesler/dogru_bildin.mp3",
   `${KUTUPHANE}/vision_bundle.mjs`,
   `${KUTUPHANE}/wasm/vision_wasm_internal.js`,
   `${KUTUPHANE}/wasm/vision_wasm_internal.wasm`,
