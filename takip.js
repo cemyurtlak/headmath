@@ -32,7 +32,7 @@ export class KafaTakip {
 
   /** Kamerayı açar ve modelleri yükler. durumYaz(metin) yükleme mesajı için. */
   async baslat(durumYaz = () => {}) {
-    durumYaz("Kamera açılıyor...");
+    durumYaz("Kamera açılıyor... (izin isterse \"İzin ver\" deyin)");
     const akis = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: "user", width: { ideal: A.KAMERA_GENISLIK }, height: { ideal: A.KAMERA_YUKSEKLIK } },
       audio: false,

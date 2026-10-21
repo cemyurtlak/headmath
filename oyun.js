@@ -20,6 +20,9 @@ const YONLER = ["sol", "ust", "sag"];
 const YON_ETIKET = { sol: "← SOLA EĞİL", ust: "↑ ZIPLA", sag: "SAĞA EĞİL →" };
 const SKOR_ANAHTARI = "headmath_skorlar";
 const simdi = () => performance.now() / 1000;
+/** Bir işlem belirtilen sürede bitmezse hata verir (tabletlerde takılıp kalmasın diye). */
+const zamanAsimi = (soz, sn, ad) => Promise.race([soz, new Promise((_, red) =>
+  setTimeout(() => red(new Error(`${ad} ${sn} sn içinde bitmedi`)), sn * 1000))]);
 
 // ======================================================================
 class Secici {
@@ -55,19 +58,29 @@ class Sesler {
    *  bu yüzden ac() "Başla" dokunuşunda çağrılır. Dosya yoksa oyun sessiz devam eder. */
   constructor() { this.tamponlar = {}; this.uyarilar = []; this.calan = null; this.ctx = null; }
 
+  /** Ses motorunu açar ve sesleri yükler. Hiçbir adım oyunu bekletmez: bazı Android
+   *  tabletlerde resume() veya decodeAudioData() hiç cevap vermeyebiliyor. */
   async ac() {
     if (!A.SES_ACIK) return;
     try {
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-      await this.ctx.resume();
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();   // dokunuş anında oluşturulmalı
     } catch (hata) { this.uyarilar.push(`Ses açılamadı: ${hata}`); return; }
+    zamanAsimi(this.ctx.resume(), 3, "Ses motoru").catch((h) => console.warn(h));
+    // Bazı tarayıcılar sesi ancak bir sonraki dokunuşta açar
+    const ac = () => { if (this.ctx.state !== "running") this.ctx.resume().catch(() => {}); };
+    window.addEventListener("pointerdown", ac);
     const liste = [["dogru", A.DOGRU_SESI, true], ["yanlis", A.YANLIS_SESI, true], ["dogru_soz", A.DOGRU_SOZ_SESI, false]];
     await Promise.all(liste.map(async ([ad, yol, zorunlu]) => {
       if (!yol) return;
       try {
-        const yanit = await fetch(yol);
+        const yanit = await zamanAsimi(fetch(yol), 15, "İndirme");
         if (!yanit.ok) throw new Error(`dosya yok (${yanit.status})`);
-        this.tamponlar[ad] = await this.ctx.decodeAudioData(await yanit.arrayBuffer());
+        const veri = await yanit.arrayBuffer();
+        // Eski tarayıcılar decodeAudioData'yı yalnızca geri çağırmayla destekler
+        this.tamponlar[ad] = await zamanAsimi(new Promise((ok, red) => {
+          const s = this.ctx.decodeAudioData(veri, ok, red);
+          if (s && s.then) s.then(ok, red);
+        }), 10, "Ses çözme");
       } catch (hata) {
         if (zorunlu) this.uyarilar.push(`Ses yüklenemedi: ${yol} (${hata.message || hata})`);
       }
@@ -219,8 +232,7 @@ class Oyun {
   async baslat() {
     this.durum = "YUKLENIYOR";
     tamEkranAc();
-    this.yukleme = "Sesler hazırlanıyor...";
-    await this.sesler.ac();
+    this.sesler.ac();          // arka planda; oyun sesleri beklemez
     try {
       const takip = new KafaTakip(this.video);
       await takip.baslat((m) => { this.yukleme = m; });
