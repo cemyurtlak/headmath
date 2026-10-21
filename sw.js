@@ -2,7 +2,7 @@
 // modelleri tabletin önbelleğine alır; sonra internet olmasa da oyun açılır.
 // Oyunda değişiklik yapınca SURUM numarasını artırın; tabletler bir sonraki internetli
 // açılışta yeni sürümü alır.
-const SURUM = "headmath-v2";
+const SURUM = "headmath-v3";
 const KUTUPHANE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21";
 const MODELLER = "https://storage.googleapis.com/mediapipe-models";
 const DOSYALAR = [
@@ -30,15 +30,14 @@ self.addEventListener("activate", (e) => {
     .then(() => self.clients.claim()));
 });
 
-// Önce önbellek, yoksa internet (inen dosya önbelleğe eklenir).
+// Önce bu sürümün önbelleği, yoksa internet. İnen dosya önbelleğe eklenir; böylece kurulumda
+// inemeyen bir dosya (ör. GitHub'ın bir süre "yok" dediği yeni bir ses) sonraki açılışta tamamlanır.
+// Yalnızca bu sürümün önbelleğine bakılır; eski sürümlerden kalan dosya kullanılmaz.
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
-  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then((kayitli) => kayitli ||
+  e.respondWith(caches.open(SURUM).then((c) => c.match(e.request).then((kayitli) => kayitli ||
     fetch(e.request).then((yanit) => {
-      if (yanit.ok && SAKLANACAK.some((k) => e.request.url.startsWith(k))) {
-        const kopya = yanit.clone();
-        caches.open(SURUM).then((c) => c.put(e.request, kopya));
-      }
+      if (yanit.ok && SAKLANACAK.some((k) => e.request.url.startsWith(k))) c.put(e.request, yanit.clone());
       return yanit;
-    })));
+    }))));
 });

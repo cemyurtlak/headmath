@@ -25,7 +25,7 @@
   <script type="module" src="oyun.js"></script>
   <script>
     // Çevrimdışı çalışma: dosyalar ilk açılışta tabletin önbelleğine alınır.
-    if ("serviceWorker" in navigator && location.protocol === "https:") {
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
       navigator.serviceWorker.register("sw.js").catch((h) => console.warn("Service worker:", h));
     }
   </script>
