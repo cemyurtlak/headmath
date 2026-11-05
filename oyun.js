@@ -532,11 +532,11 @@ class Oyun {
     const soruKamera = kutu(W / 2 - 240, 305, 480, 360);
     this.kameraCiz(kafa, soruKamera);
     // Cevaplarken de durulacak alan görünsün. Sadece rehberdir, seçimi engellemez:
-    // soluk beyaz = yerinde, sarı = 1 sn'den uzun alan dışı, kırmızı = çok yakın
+    // beyaz = yerinde, sarı = 1 sn'den uzun alan dışı, kırmızı = çok yakın
     if (this.takip && this.video.videoWidth) {
       const disarida = this.alanDisiZaman !== null && simdi() - this.alanDisiZaman >= A.SORU_ALAN_DISI_SURESI;
-      const siluetRenk = this.cokYakin ? KIRMIZI : disarida ? SARI : "rgba(255,255,255,0.45)";
-      this.siluetCiz(soruKamera, siluetRenk, 3);
+      const siluetRenk = this.cokYakin ? KIRMIZI : disarida ? SARI : BEYAZ;
+      this.siluetCiz(soruKamera, siluetRenk, 4);
     }
 
     SIK_KUTULARI.forEach((k, i) => {
@@ -582,18 +582,22 @@ class Oyun {
     const my = k.y + k.h * (A.YERLESIM_Y[0] + A.YERLESIM_Y[1]) / 2;
     c.save();
     c.beginPath(); c.rect(k.x, k.y, k.w, k.h); c.clip();     // kamera kutusunun dışına taşmasın
+    const omuzY = my + kafaY * 0.62, omuzG = kafaX * 1.7;
+    const yol = () => {
+      c.beginPath(); c.ellipse(mx, my - kafaY * 0.08, kafaX / 2, kafaY / 2, 0, 0, Math.PI * 2);
+      c.moveTo(mx - omuzG, Math.min(k.y + k.h, omuzY + kafaY * 0.9));
+      c.quadraticCurveTo(mx - omuzG, omuzY, mx - kafaX * 0.35, omuzY - kafaY * 0.05);
+      c.moveTo(mx + omuzG, Math.min(k.y + k.h, omuzY + kafaY * 0.9));
+      c.quadraticCurveTo(mx + omuzG, omuzY, mx + kafaX * 0.35, omuzY - kafaY * 0.05);
+    };
+    // Önce koyu kenar (her kamera görüntüsünde seçilsin), sonra renkli kesik çizgi
+    c.lineWidth = kalinlik + 4;
+    c.strokeStyle = "rgba(0,0,0,0.55)";
+    yol(); c.stroke();
     c.setLineDash([kalinlik * 2.8, kalinlik * 2]);
     c.lineWidth = kalinlik;
     c.strokeStyle = renkC;
-    c.shadowColor = "rgba(0,0,0,0.7)"; c.shadowBlur = 6;
-    c.beginPath(); c.ellipse(mx, my - kafaY * 0.08, kafaX / 2, kafaY / 2, 0, 0, Math.PI * 2); c.stroke();
-    const omuzY = my + kafaY * 0.62, omuzG = kafaX * 1.7;
-    c.beginPath();
-    c.moveTo(mx - omuzG, Math.min(k.y + k.h, omuzY + kafaY * 0.9));
-    c.quadraticCurveTo(mx - omuzG, omuzY, mx - kafaX * 0.35, omuzY - kafaY * 0.05);
-    c.moveTo(mx + omuzG, Math.min(k.y + k.h, omuzY + kafaY * 0.9));
-    c.quadraticCurveTo(mx + omuzG, omuzY, mx + kafaX * 0.35, omuzY - kafaY * 0.05);
-    c.stroke();
+    yol(); c.stroke();
     c.restore();
   }
 

@@ -2,7 +2,7 @@
 // modelleri tabletin önbelleğine alır; sonra internet olmasa da oyun açılır.
 // Oyunda değişiklik yapınca SURUM numarasını artırın; tabletler bir sonraki internetli
 // açılışta yeni sürümü alır.
-const SURUM = "headmath-v8";
+const SURUM = "headmath-v9";
 const KUTUPHANE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21";
 const MODELLER = "https://storage.googleapis.com/mediapipe-models";
 const DOSYALAR = [
