@@ -80,7 +80,7 @@ export class KafaTakip {
 
   durum() {
     return { yon: this.yon, egim: this.egim, yuzVar: this.yuzVar, el: this.el,
-             gozler: this.gozler, burun: this.burun };
+             gozler: this.gozler, burun: this.burun, yuzKonum: this.yuzKonum };
   }
 
   /** Her ekran karesinde çağrılır; kamerada yeni kare varsa algılama yapar. */
@@ -114,6 +114,7 @@ export class KafaTakip {
     if (!yuzler.length) {
       this.yuzVar = false;
       this.gozler = null;
+      this.yuzKonum = null;
       this.yon = null;
       this.ziplamaSayac = 0;
       return;
@@ -153,5 +154,7 @@ export class KafaTakip {
     // Çizim yardımı için (oyun.js gözler arası çizgiyi ve burnu çizer)
     this.gozler = [[p1[0] / w, p1[1] / h], [p2[0] / w, p2[1] / h]];
     this.burun = [1 - yuz[BURUN_UCU].x, burunY];
+    // Yerleşme kontrolü için: burnun yeri (aynalı) ve yüz boyu (uzaklık ölçüsü)
+    this.yuzKonum = { x: 1 - yuz[BURUN_UCU].x, y: burunY, boy: yuzBoyu };
   }
 }

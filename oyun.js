@@ -1,12 +1,13 @@
 // HeadMath (web sürümü) - oyun ekranı ve akışı.
 // Python sürümündeki main.py ile aynı akış:
-//   BASLAT (dokun) → SINIF_SECIM (el ile) → SINIF_SECILDI → KALIBRASYON → SORU ⇄ GERI_BILDIRIM
+//   BASLAT (dokun) → SINIF_SECIM (el ile) → SINIF_SECILDI → YERLESIM → KALIBRASYON → SORU ⇄ GERI_BILDIRIM
 //   → BITIS (isim) → SKOR_TABLOSU → (Yeni oyuncu) SINIF_SECIM
 // Tablet için ek olarak: sınıf kutusuna ve şık kutusuna dokunarak da seçim yapılabilir.
 
 import * as A from "./ayarlar.js";
 import { soruUret, sayi } from "./sorular.js";
 import { KafaTakip } from "./takip.js";
+import { acilisCiz } from "./acilis.js";
 
 const W = A.EKRAN_GENISLIK, H = A.EKRAN_YUKSEKLIK;
 const FONT = 'system-ui, "Segoe UI", Roboto, Arial, sans-serif';
@@ -154,6 +155,22 @@ function kirpmaAlani(kg, ky) {
   return [x0, y0, 1 - x0, 1 - y0];
 }
 
+/** Oyuncu kameranın önünde doğru yerde mi? {tamam, mesaj} döndürür. */
+function yerlesimDurumu(kafa) {
+  const k = kafa.yuzKonum;
+  if (!kafa.yuzVar || !k) return { tamam: false, mesaj: "Kameraya bak, yüzün görünmüyor" };
+  if (k.boy > A.YERLESIM_YUZ_BOY_MAX) return { tamam: false, mesaj: "Çok yakınsın! Biraz geri çekil" };
+  if (k.boy < A.YERLESIM_YUZ_BOY_MIN) return { tamam: false, mesaj: "Biraz yaklaş" };
+  if (k.x < A.YERLESIM_X[0]) return { tamam: false, mesaj: "Biraz sağına kay  →" };
+  if (k.x > A.YERLESIM_X[1]) return { tamam: false, mesaj: "←  Biraz soluna kay" };
+  if (k.y < A.YERLESIM_Y[0]) return { tamam: false, mesaj: "Kafan çok yukarıda: tableti yüz hizana kaldırın" };
+  if (k.y > A.YERLESIM_Y[1]) return { tamam: false, mesaj: "Kafan çok aşağıda: tableti biraz alçaltın" };
+  return { tamam: true, mesaj: "Harika! Böyle kal" };
+}
+
+const YERLESIM_KAMERA = kutu(W / 2 - 320, 110, 640, 480);
+const GEC_DUGMESI = kutu(W - 190, 640, 160, 56);
+
 const SIK_KUTULARI = [kutu(30, 380, 330, 140), kutu(W / 2 - 165, 172, 330, 120), kutu(W - 360, 380, 330, 140)];
 const YENI_OYUNCU_DUGMESI = kutu(W / 2 - 170, 655, 340, 52);
 
@@ -206,6 +223,8 @@ class Oyun {
     if (d === "SINIF_SECIM") {
       const i = this.sinifKutu.findIndex((k) => icinde(k, p));
       if (i >= 0) this.sinifSec(i);
+    } else if (d === "YERLESIM" && icinde(GEC_DUGMESI, p)) {
+      this.kalibrasyonaGec();
     } else if (d === "SORU") {
       const i = SIK_KUTULARI.findIndex((k) => icinde(k, p));
       if (i >= 0) this.cevapla(YONLER[i]);
@@ -220,6 +239,7 @@ class Oyun {
     if (e.key === " " || e.key === "Enter") {
       if (this.durum === "BASLAT") this.baslat();
       else if (this.durum === "SKOR_TABLOSU") this.sinifSecimineGec();
+      else if (this.durum === "YERLESIM") this.kalibrasyonaGec();
       e.preventDefault();
       return;
     }
@@ -271,12 +291,18 @@ class Oyun {
     }
     this.soruNo = -1;
     if (this.takip) {
-      this.takip.tabaniSifirla();
-      this.durum = "KALIBRASYON";
-      this.zaman = simdi();
+      this.durum = "YERLESIM";            // önce kameranın önünde doğru yere geç
+      this.yerlesimTamamZaman = null;
+      this.yerlesimIlerleme = 0;
     } else {
       this.sonrakiSoru();
     }
+  }
+
+  kalibrasyonaGec() {
+    this.takip.tabaniSifirla();           // zıplama referansı doğru yerde öğrenilsin
+    this.durum = "KALIBRASYON";
+    this.zaman = simdi();
   }
 
   sonrakiSoru() {
@@ -375,10 +401,23 @@ class Oyun {
       if (secilen !== null) this.sinifSec(secilen);
     } else if (d === "SINIF_SECILDI" && t - this.zaman >= A.SINIF_SECILDI_SURESI) {
       this.yeniOyun();
+    } else if (d === "YERLESIM") {
+      if (yerlesimDurumu(kafa).tamam) {
+        if (this.yerlesimTamamZaman === null) this.yerlesimTamamZaman = t;
+        this.yerlesimIlerleme = Math.min(1, (t - this.yerlesimTamamZaman) / A.YERLESIM_TUTMA_SURESI);
+        if (this.yerlesimIlerleme >= 1) this.kalibrasyonaGec();
+      } else {
+        this.yerlesimTamamZaman = null;
+        this.yerlesimIlerleme = 0;
+      }
     } else if (d === "KALIBRASYON" && t - this.zaman >= A.KALIBRASYON_SURESI) {
       this.sonrakiSoru();
     } else if (d === "SORU") {
-      const secilen = this.takip ? this.secici.guncelle(kafa.yon, t) : null;
+      // Oyuncu kameraya çok yaklaşırsa küçük kafa hareketleri seçim sayılmasın
+      this.cokYakin = Boolean(this.takip && kafa.yuzKonum &&
+                              kafa.yuzKonum.boy > A.YERLESIM_YUZ_BOY_MAX * A.COK_YAKIN_ORANI);
+      if (this.cokYakin) this.secici.sifirla();
+      const secilen = this.takip && !this.cokYakin ? this.secici.guncelle(kafa.yon, t) : null;
       if (secilen) this.cevapla(secilen);
       else if (t - this.zaman >= this.sure) this.cevapla(null);   // süre doldu
     } else if (d === "GERI_BILDIRIM") {
@@ -448,19 +487,7 @@ class Oyun {
     c.fillStyle = ARKA; c.fillRect(0, 0, W, H);
 
     if (d === "BASLAT" || d === "YUKLENIYOR") {
-      this.yaz("HeadMath", F_DEV, SARI, W / 2, 200);
-      this.yaz("Kafanla cevapla!", F_ORTA, BEYAZ, W / 2, 275);
-      const dugme = kutu(W / 2 - 200, 360, 400, 110);
-      if (d === "BASLAT") {
-        const nabiz = 0.85 + 0.15 * Math.sin(simdi() * 4);
-        this.dikdortgen(dugme, renk([46, 204, 113], nabiz), BEYAZ, 3, 24);
-        this.yaz("BAŞLA", F_BUYUK, BEYAZ, dugme.cx, dugme.cy);
-        this.yaz("Başlamak için ekrana dokunun", F_KUCUK, GRI, W / 2, 520);
-        this.yaz("Kamera izni istenirse \"İzin ver\" deyin", F_KUCUK, GRI, W / 2, 560);
-      } else {
-        this.yaz(this.yukleme, F_ORTA, BEYAZ, W / 2, dugme.cy);
-        this.yaz("İlk açılışta biraz sürebilir", F_KUCUK, GRI, W / 2, 520);
-      }
+      acilisCiz(c, W, H, simdi(), d, this.yukleme);   // süslü açılış ekranı (acilis.js)
       return;
     }
     if (d === "SINIF_SECIM") return this.sinifSecimCiz(kafa);
@@ -470,6 +497,7 @@ class Oyun {
       this.yaz("Başarılar!", F_BUYUK, BEYAZ, W / 2, H / 2 + 50);
       return;
     }
+    if (d === "YERLESIM") return this.yerlesimCiz(kafa);
     if (d === "KALIBRASYON") {
       const kalan = A.KALIBRASYON_SURESI - (simdi() - this.zaman);
       this.yaz("Hazırlan! Başını DÜZ tut ve kameraya bak", F_ORTA, SARI, W / 2, 80);
@@ -506,12 +534,17 @@ class Oyun {
       if (d === "SORU" && this.secici.aday === yon && this.secici.ilerleme > 0) {
         this.dikdortgen(kutu(k.x, k.y, k.w * this.secici.ilerleme, k.h), renk(r));
       }
-      if (d === "SORU" && kafa.yon === yon) this.dikdortgen(k, null, SARI, 5);
       this.yaz(sayi(this.soru.siklar[i]), F_BUYUK, BEYAZ, k.cx, k.cy - 12);
       this.yaz(this.takip ? YON_ETIKET[yon] : "dokun", F_KUCUK, BEYAZ, k.cx, k.y + k.h - 22);
     });
 
-    if (d === "SORU" && this.secici.notrBekleniyor && this.takip) this.yaz("Başını düzelt", F_KUCUK, SARI, W / 2, 690);
+    if (d === "SORU" && this.cokYakin) {
+      c.fillStyle = "rgba(231,76,60,0.9)"; c.fillRect(W / 2 - 240, 440, 480, 90);
+      this.yaz("ÇOK YAKINSIN!", F_ORTA, BEYAZ, W / 2, 468);
+      this.yaz("Biraz geri çekil", F_KUCUK, BEYAZ, W / 2, 506);
+    } else if (d === "SORU" && this.secici.notrBekleniyor && this.takip) {
+      this.yaz("Başını düzelt", F_KUCUK, SARI, W / 2, 690);
+    }
 
     if (d === "GERI_BILDIRIM" && simdi() >= this.yaziZamani) {   // doğruda alkış bitince çıkar
       let mesaj, mr;
@@ -521,6 +554,48 @@ class Oyun {
       c.fillStyle = "rgba(0,0,0,0.75)"; c.fillRect(0, 560, W, 110);
       this.yaz(mesaj, F_DEV, mr, W / 2, 615);
     }
+  }
+
+  /** Yerleşme ekranı: kamera + hedef silüet + yönlendirme yazısı. */
+  yerlesimCiz(kafa) {
+    const c = this.c, k = YERLESIM_KAMERA, durum = yerlesimDurumu(kafa);
+    const renkC = durum.tamam ? YESIL : BEYAZ;
+    this.yaz("Kameranın önünde yerini al", F_ORTA, SARI, W / 2, 40);
+    this.yaz("Kafanı ve omuzlarını çizgilerin içine yerleştir", F_KUCUK, BEYAZ, W / 2, 80);
+    this.kameraCiz(kafa, k);
+
+    // Hedef silüet: ideal yüz boyunun ortasına göre kafa oval + omuzlar
+    const idealBoy = (A.YERLESIM_YUZ_BOY_MIN + A.YERLESIM_YUZ_BOY_MAX) / 2;
+    const kafaY = k.h * idealBoy * 1.45, kafaX = kafaY * 0.78;
+    const mx = k.x + k.w * (A.YERLESIM_X[0] + A.YERLESIM_X[1]) / 2;
+    const my = k.y + k.h * (A.YERLESIM_Y[0] + A.YERLESIM_Y[1]) / 2;
+    c.save();
+    c.setLineDash([14, 10]);
+    c.lineWidth = 5;
+    c.strokeStyle = renkC;
+    c.shadowColor = "rgba(0,0,0,0.7)"; c.shadowBlur = 6;
+    c.beginPath(); c.ellipse(mx, my - kafaY * 0.08, kafaX / 2, kafaY / 2, 0, 0, Math.PI * 2); c.stroke();
+    const omuzY = my + kafaY * 0.62, omuzG = kafaX * 1.7;
+    c.beginPath();
+    c.moveTo(mx - omuzG, Math.min(k.y + k.h, omuzY + kafaY * 0.9));
+    c.quadraticCurveTo(mx - omuzG, omuzY, mx - kafaX * 0.35, omuzY - kafaY * 0.05);
+    c.moveTo(mx + omuzG, Math.min(k.y + k.h, omuzY + kafaY * 0.9));
+    c.quadraticCurveTo(mx + omuzG, omuzY, mx + kafaX * 0.35, omuzY - kafaY * 0.05);
+    c.stroke();
+    c.restore();
+
+    // Yönlendirme yazısı
+    const sb = kutu(k.x, k.y + k.h - 70, k.w, 70);
+    c.fillStyle = durum.tamam ? "rgba(46,204,113,0.85)" : "rgba(0,0,0,0.65)"; c.fillRect(sb.x, sb.y, sb.w, sb.h);
+    this.yazSigdir(durum.mesaj, [F_ORTA, F_KUCUK], durum.tamam ? BEYAZ : SARI, sb.cx, sb.cy, sb.w - 20);
+
+    // Doğru yerde bekleme çubuğu
+    this.dikdortgen(kutu(k.x, k.y + k.h + 18, k.w, 16), KUTU, null, 0, 8);
+    if (this.yerlesimIlerleme > 0) this.dikdortgen(kutu(k.x, k.y + k.h + 18, k.w * this.yerlesimIlerleme, 16), YESIL, null, 0, 8);
+
+    // Görevli için "Geç" düğmesi
+    this.dikdortgen(GEC_DUGMESI, "rgba(255,255,255,0.12)", "rgba(255,255,255,0.4)", 2, 14);
+    this.yaz("Geç  ›", F_KUCUK, BEYAZ, GEC_DUGMESI.cx, GEC_DUGMESI.cy);
   }
 
   sinifSecimCiz(kafa) {

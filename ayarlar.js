@@ -24,6 +24,16 @@ export const NOTR_EGIM_DERECE = 8;      // Yeni soruya geçmeden önce kafa bu a
 export const TABAN_UYUM_HIZI = 0.05;    // Burun "normal" yüksekliği ne kadar hızlı güncellenir (0-1)
 export const KALIBRASYON_SURESI = 2.0;  // Oyun başında düz durma süresi (sn)
 
+// ---------------- Kameraya yerleşme ----------------
+// Sorulardan önce oyuncu kameranın önünde doğru yere ve uzaklığa yerleştirilir.
+// "Yüz boyu" = alından çeneye yüksekliğin görüntü yüksekliğine oranı (uzaklığı gösterir).
+export const YERLESIM_YUZ_BOY_MIN = 0.12;    // bundan küçükse "Biraz yaklaş"
+export const YERLESIM_YUZ_BOY_MAX = 0.28;    // bundan büyükse "Çok yakınsın, geri çekil"
+export const YERLESIM_X = [0.35, 0.65];      // burnun yatayda olması gereken aralık (0 sol, 1 sağ)
+export const YERLESIM_Y = [0.25, 0.62];      // burnun dikeyde olması gereken aralık (0 üst, 1 alt)
+export const YERLESIM_TUTMA_SURESI = 1.0;    // doğru yerde kaç sn durunca oyun başlasın
+export const COK_YAKIN_ORANI = 1.15;         // soru sırasında yüz boyu MAX x bu oranı geçerse seçim durur
+
 // ---------------- El ile sınıf seçimi ----------------
 export const EL_TUTMA_SURESI = 1.5;     // El bir sınıfın üzerinde kaç saniye durursa o sınıf seçilir
 export const EL_ALAN_YATAY_KENAR = 0.10;// Kamera görüntüsünün sağından/solundan bu oran kırpılır
