@@ -155,16 +155,17 @@ function kirpmaAlani(kg, ky) {
   return [x0, y0, 1 - x0, 1 - y0];
 }
 
-/** Oyuncu kameranın önünde doğru yerde mi? {tamam, mesaj} döndürür. */
-function yerlesimDurumu(kafa) {
+/** Oyuncu kameranın önünde doğru yerde mi? {tamam, mesaj} döndürür.
+ *  pay: soru sırasında alanı her yönde genişletmek için (hareket serbestliği). */
+function yerlesimDurumu(kafa, pay = 0) {
   const k = kafa.yuzKonum;
   if (!kafa.yuzVar || !k) return { tamam: false, mesaj: "Kameraya bak, yüzün görünmüyor" };
   if (k.boy > A.YERLESIM_YUZ_BOY_MAX) return { tamam: false, mesaj: "Çok yakınsın! Biraz geri çekil" };
-  if (k.boy < A.YERLESIM_YUZ_BOY_MIN) return { tamam: false, mesaj: "Biraz yaklaş" };
-  if (k.x < A.YERLESIM_X[0]) return { tamam: false, mesaj: "Biraz sağına kay  →" };
-  if (k.x > A.YERLESIM_X[1]) return { tamam: false, mesaj: "←  Biraz soluna kay" };
-  if (k.y < A.YERLESIM_Y[0]) return { tamam: false, mesaj: "Kafan çok yukarıda: tableti yüz hizana kaldırın" };
-  if (k.y > A.YERLESIM_Y[1]) return { tamam: false, mesaj: "Kafan çok aşağıda: tableti biraz alçaltın" };
+  if (k.boy < A.YERLESIM_YUZ_BOY_MIN * (1 - pay * 2)) return { tamam: false, mesaj: "Biraz yaklaş" };
+  if (k.x < A.YERLESIM_X[0] - pay) return { tamam: false, mesaj: "Biraz sağına kay  →" };
+  if (k.x > A.YERLESIM_X[1] + pay) return { tamam: false, mesaj: "←  Biraz soluna kay" };
+  if (k.y < A.YERLESIM_Y[0] - pay) return { tamam: false, mesaj: "Kafan çok yukarıda: tableti yüz hizana kaldırın" };
+  if (k.y > A.YERLESIM_Y[1] + pay) return { tamam: false, mesaj: "Kafan çok aşağıda: tableti biraz alçaltın" };
   return { tamam: true, mesaj: "Harika! Böyle kal" };
 }
 
@@ -321,6 +322,7 @@ class Oyun {
     this.zaman = simdi();
     this.secim = null;
     this.secici.sifirla();
+    this.alanDisiZaman = null;
     this.durum = "SORU";
   }
 
@@ -417,6 +419,12 @@ class Oyun {
       this.cokYakin = Boolean(this.takip && kafa.yuzKonum &&
                               kafa.yuzKonum.boy > A.YERLESIM_YUZ_BOY_MAX * A.COK_YAKIN_ORANI);
       if (this.cokYakin) this.secici.sifirla();
+      // Silüet rengi için: geniş alanın dışında ne zamandır? (kısa çıkışlar sayılmaz)
+      if (this.takip && !yerlesimDurumu(kafa, A.SORU_ALAN_PAYI).tamam) {
+        if (this.alanDisiZaman === null) this.alanDisiZaman = t;
+      } else {
+        this.alanDisiZaman = null;
+      }
       const secilen = this.takip && !this.cokYakin ? this.secici.guncelle(kafa.yon, t) : null;
       if (secilen) this.cevapla(secilen);
       else if (t - this.zaman >= this.sure) this.cevapla(null);   // süre doldu
@@ -521,7 +529,15 @@ class Oyun {
     this.dikdortgen(kutu(40, 145, W - 80, 14), KUTU, null, 0, 7);
     if (oran > 0) this.dikdortgen(kutu(40, 145, (W - 80) * oran, 14), oran > 0.5 ? YESIL : oran > 0.25 ? SARI : KIRMIZI, null, 0, 7);
 
-    this.kameraCiz(kafa, kutu(W / 2 - 240, 305, 480, 360));
+    const soruKamera = kutu(W / 2 - 240, 305, 480, 360);
+    this.kameraCiz(kafa, soruKamera);
+    // Cevaplarken de durulacak alan görünsün. Sadece rehberdir, seçimi engellemez:
+    // soluk beyaz = yerinde, sarı = 1 sn'den uzun alan dışı, kırmızı = çok yakın
+    if (this.takip && this.video.videoWidth) {
+      const disarida = this.alanDisiZaman !== null && simdi() - this.alanDisiZaman >= A.SORU_ALAN_DISI_SURESI;
+      const siluetRenk = this.cokYakin ? KIRMIZI : disarida ? SARI : "rgba(255,255,255,0.45)";
+      this.siluetCiz(soruKamera, siluetRenk, 3);
+    }
 
     SIK_KUTULARI.forEach((k, i) => {
       const yon = YONLER[i];
@@ -556,22 +572,18 @@ class Oyun {
     }
   }
 
-  /** Yerleşme ekranı: kamera + hedef silüet + yönlendirme yazısı. */
-  yerlesimCiz(kafa) {
-    const c = this.c, k = YERLESIM_KAMERA, durum = yerlesimDurumu(kafa);
-    const renkC = durum.tamam ? YESIL : BEYAZ;
-    this.yaz("Kameranın önünde yerini al", F_ORTA, SARI, W / 2, 40);
-    this.yaz("Kafanı ve omuzlarını çizgilerin içine yerleştir", F_KUCUK, BEYAZ, W / 2, 80);
-    this.kameraCiz(kafa, k);
-
-    // Hedef silüet: ideal yüz boyunun ortasına göre kafa oval + omuzlar
+  /** Kamera görüntüsü (k) üzerine oyuncunun durması gereken alanı çizer:
+   *  ideal yüz boyuna göre kafa ovali + omuzlar, kesik çizgiyle. */
+  siluetCiz(k, renkC, kalinlik = 5) {
+    const c = this.c;
     const idealBoy = (A.YERLESIM_YUZ_BOY_MIN + A.YERLESIM_YUZ_BOY_MAX) / 2;
     const kafaY = k.h * idealBoy * 1.45, kafaX = kafaY * 0.78;
     const mx = k.x + k.w * (A.YERLESIM_X[0] + A.YERLESIM_X[1]) / 2;
     const my = k.y + k.h * (A.YERLESIM_Y[0] + A.YERLESIM_Y[1]) / 2;
     c.save();
-    c.setLineDash([14, 10]);
-    c.lineWidth = 5;
+    c.beginPath(); c.rect(k.x, k.y, k.w, k.h); c.clip();     // kamera kutusunun dışına taşmasın
+    c.setLineDash([kalinlik * 2.8, kalinlik * 2]);
+    c.lineWidth = kalinlik;
     c.strokeStyle = renkC;
     c.shadowColor = "rgba(0,0,0,0.7)"; c.shadowBlur = 6;
     c.beginPath(); c.ellipse(mx, my - kafaY * 0.08, kafaX / 2, kafaY / 2, 0, 0, Math.PI * 2); c.stroke();
@@ -583,6 +595,16 @@ class Oyun {
     c.quadraticCurveTo(mx + omuzG, omuzY, mx + kafaX * 0.35, omuzY - kafaY * 0.05);
     c.stroke();
     c.restore();
+  }
+
+  /** Yerleşme ekranı: kamera + hedef silüet + yönlendirme yazısı. */
+  yerlesimCiz(kafa) {
+    const c = this.c, k = YERLESIM_KAMERA, durum = yerlesimDurumu(kafa);
+    const renkC = durum.tamam ? YESIL : BEYAZ;
+    this.yaz("Kameranın önünde yerini al", F_ORTA, SARI, W / 2, 40);
+    this.yaz("Kafanı ve omuzlarını çizgilerin içine yerleştir", F_KUCUK, BEYAZ, W / 2, 80);
+    this.kameraCiz(kafa, k);
+    this.siluetCiz(k, renkC);
 
     // Yönlendirme yazısı
     const sb = kutu(k.x, k.y + k.h - 70, k.w, 70);

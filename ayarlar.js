@@ -33,6 +33,9 @@ export const YERLESIM_X = [0.35, 0.65];      // burnun yatayda olması gereken a
 export const YERLESIM_Y = [0.25, 0.62];      // burnun dikeyde olması gereken aralık (0 üst, 1 alt)
 export const YERLESIM_TUTMA_SURESI = 1.0;    // doğru yerde kaç sn durunca oyun başlasın
 export const COK_YAKIN_ORANI = 1.15;         // soru sırasında yüz boyu MAX x bu oranı geçerse seçim durur
+// Cevaplarken oyuncu doğal olarak hareket eder; silüet o sırada yalnızca rehberdir, engellemez.
+export const SORU_ALAN_PAYI = 0.12;          // soru sırasında alan her yönde bu kadar genişler
+export const SORU_ALAN_DISI_SURESI = 1.0;    // alan dışında bu kadar sn kalınca silüet sarıya döner
 
 // ---------------- El ile sınıf seçimi ----------------
 export const EL_TUTMA_SURESI = 1.5;     // El bir sınıfın üzerinde kaç saniye durursa o sınıf seçilir
